@@ -1,0 +1,56 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: api-gateway
+
+  cloud:
+    gateway:
+      discovery:
+        locator:
+          enabled: true          # rotas automáticas via Eureka (lb://NOME-DO-SERVICO)
+          lower-case-service-id: true
+
+      routes:
+        - id: agent-service
+          uri: lb://agent-service   # resolvido pelo Eureka
+          predicates:
+            - Path=/api/agent/**
+          filters:
+            - StripPrefix=2          # remove /api/agent antes de repassar
+            - name: CircuitBreaker
+              args:
+                name: agentCB
+                fallbackUri: forward:/fallback/agent
+            - name: RequestRateLimiter
+              args:
+                redis-rate-limiter.replenishRate: 10
+                redis-rate-limiter.burstCapacity: 20
+
+eureka:
+  client:
+    service-url:
+      defaultZone: http://localhost:8761/eureka
+  instance:
+    prefer-ip-address: true
+
+# Circuit breaker — Resilience4j
+resilience4j:
+  circuitbreaker:
+    instances:
+      agentCB:
+        sliding-window-size: 5
+        failure-rate-threshold: 50          # abre com 50 % de falhas
+        wait-duration-in-open-state: 10s
+        permitted-number-of-calls-in-half-open-state: 2
+        register-health-indicator: true
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health, info, gateway, circuitbreakers
+  endpoint:
+    health:
+      show-details: always
