@@ -1,3 +1,5 @@
+import builtins
+import json
 import httpx
 import os
 from typing import Any
@@ -5,6 +7,10 @@ from typing import Any
 LLM_GATEWAY_URL = os.getenv("LLM_GATEWAY_URL", "http://localhost:4000")
 LLM_API_KEY = os.getenv("LLM_GATEWAY_API_KEY", "sk-local-dev")
 LLM_MODEL = os.getenv("LLM_MODEL", "local")
+
+MAX_STEPS = int(os.getenv("AGENT_MAX_STEPS", "5"))
+
+_ALLOWED_BUILTINS = ("abs", "round", "min", "max", "sum", "pow")
 
 TOOLS: dict[str, dict] = {
     "calculator": {
@@ -33,9 +39,7 @@ TOOLS: dict[str, dict] = {
 def execute_tool(name: str, args: dict[str, Any]) -> str:
     if name == "calculator":
         try:
-            # eval restrito a operações numéricas
-            allowed = {k: v for k, v in vars(__builtins__).items()
-                       if k in ("abs", "round", "min", "max", "sum", "pow")}
+            allowed = {k: getattr(builtins, k) for k in _ALLOWED_BUILTINS}
             result = eval(args["expression"], {"__builtins__": allowed})
             return str(result)
         except Exception as e:
@@ -57,12 +61,13 @@ async def run_agent(user_message: str, history: list[dict]) -> tuple[str, list[d
     }
 
     async with httpx.AsyncClient(timeout=120.0) as client:
-        while True:
+        for step in range(MAX_STEPS):
+            final_step = step == MAX_STEPS - 1
             payload = {
                 "model": LLM_MODEL,
                 "messages": messages,
                 "tools": tool_schemas,
-                "tool_choice": "auto",
+                "tool_choice": "none" if final_step else "auto",
             }
 
             response = await client.post(
@@ -77,14 +82,11 @@ async def run_agent(user_message: str, history: list[dict]) -> tuple[str, list[d
             message = choice["message"]
             messages.append(message)
 
-            # Sem tool_calls → resposta final
             if not message.get("tool_calls"):
                 final_text = message.get("content", "")
                 return final_text, messages
 
-            # Executa cada ferramenta solicitada (ação → observação)
             for tool_call in message["tool_calls"]:
-                import json
                 fn_name = tool_call["function"]["name"]
                 fn_args = json.loads(tool_call["function"]["arguments"])
                 observation = execute_tool(fn_name, fn_args)
@@ -94,3 +96,6 @@ async def run_agent(user_message: str, history: list[dict]) -> tuple[str, list[d
                     "tool_call_id": tool_call["id"],
                     "content": observation,
                 })
+
+    final_text = messages[-1].get("content", "") if messages else ""
+    return final_text, messages

@@ -1,5 +1,5 @@
 # Status ES2 Tf.
-[25-05-2026] [mvfm]
+[25-05-2026] [mvfm] — atualizado em [28-06-2026]
 
 ---
 
@@ -8,9 +8,17 @@
 | Serviço | Estado | Observação |
 |---------|--------|------------|
 | `name-server` | Funcional | Eureka rodando na porta 8761 |
-| `llm-gateway` | Funcional | LiteLLM + Ollama, porta 4000 |
-| `agent-service` | Funcional | Ciclo agêntico básico com ferramenta de calculadora |
-| `api-gateway` | Esqueleto | Roteamento e circuit breaker configurados; falta Redis para rate limiter |
+| `llm-gateway` | Funcional | LiteLLM + Ollama (`llama3.2`), porta 4000 |
+| `agent-service` | Funcional | Ciclo agêntico com calculadora; bugs do `ERROS.md` (calculadora + loop infinito) corrigidos e verificados end-to-end |
+| `api-gateway` | Esqueleto | Compila/empacota; roteamento e circuit breaker configurados; falta Redis para rate limiter (não sobe ainda) |
+
+---
+
+## Ambiente (build/run validado em [28-06-2026])
+
+- **Java**: o `java` no PATH é Java 8 e não roda os JARs; usar o JDK 21 em `C:\Program Files\Java\jdk-21.0.11` por caminho absoluto (definir `JAVA_HOME` não basta).
+- **Python**: o default 3.13 não compila `pydantic==2.7.4`; usar **Python 3.12** (`py -3.12`). Há um venv por serviço: `agent-service/.venv` e `llm-gateway/.venv`.
+- **Ollama**: instalado em `%LOCALAPPDATA%\Programs\Ollama\ollama.exe` (servidor sobe sozinho na 11434); modelo `llama3.2` baixado.
 
 ---
 
