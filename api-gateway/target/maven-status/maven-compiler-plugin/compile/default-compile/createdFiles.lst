@@ -1,2 +1,3 @@
+com\nubo\apigateway\RateLimiterConfig.class
 com\nubo\apigateway\ApiGatewayApplication.class
 com\nubo\apigateway\FallbackController.class

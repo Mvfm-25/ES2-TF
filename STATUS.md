@@ -1,5 +1,5 @@
 # Status ES2 Tf.
-[25-05-2026] [mvfm] — atualizado em [28-06-2026]
+[25-05-2026] [mvfm] — atualizado em [02-07-2026]
 
 ---
 
@@ -10,7 +10,7 @@
 | `name-server` | Funcional | Eureka rodando na porta 8761 |
 | `llm-gateway` | Funcional | LiteLLM + Ollama (`llama3.2`), porta 4000 |
 | `agent-service` | Funcional | Ciclo agêntico com calculadora; bugs do `ERROS.md` (calculadora + loop infinito) corrigidos e verificados end-to-end |
-| `api-gateway` | Esqueleto | Compila/empacota; roteamento e circuit breaker configurados; falta Redis para rate limiter (não sobe ainda) |
+| `api-gateway` | Funcional | Porta 8080; roteamento via Eureka, circuit breaker e **rate limiter Redis** ativos e validados (429 ao estourar o burst) |
 
 ---
 
@@ -19,19 +19,27 @@
 - **Java**: o `java` no PATH é Java 8 e não roda os JARs; usar o JDK 21 em `C:\Program Files\Java\jdk-21.0.11` por caminho absoluto (definir `JAVA_HOME` não basta).
 - **Python**: o default 3.13 não compila `pydantic==2.7.4`; usar **Python 3.12** (`py -3.12`). Há um venv por serviço: `agent-service/.venv` e `llm-gateway/.venv`.
 - **Ollama**: instalado em `%LOCALAPPDATA%\Programs\Ollama\ollama.exe` (servidor sobe sozinho na 11434); modelo `llama3.2` baixado.
+- **Redis**: provido pelo **Memurai Developer 4.1.2** (winget `Memurai.MemuraiDeveloper`, compatível com Redis 7.2.5), instalado como serviço do Windows na porta 6379. A instalação exige elevação (UAC); `winget` sem admin falha com 1603. CLI de teste: `C:\Program Files\Memurai\memurai-cli.exe ping`.
 
 ---
 
 ## O que falta
 
-### Entrega 2 — Infraestrutura (próximo passo imediato)
+### ~~Entrega 2 — Infraestrutura~~ — CONCLUÍDA [02-07-2026]
 
-O `api-gateway` já tem roteamento e circuit breaker configurados, mas o `RequestRateLimiter`
-exige um **Redis** como backend de contagem. Antes de subir o gateway, é preciso:
+O `api-gateway` sobe na porta 8080 com roteamento via Eureka, circuit breaker (Resilience4j)
+e rate limiter distribuído (token bucket no Redis). O que foi feito:
 
-1. Instalar e subir um Redis local (`redis-server` ou via `winget install Redis.Redis`)
-2. Adicionar a dependência `spring-boot-starter-data-redis-reactive` no `pom.xml`
-3. Configurar `spring.data.redis.host/port` no `application.yml`
+1. Redis provisionado via **Memurai** (ver seção Ambiente) — porta 6379
+2. Dependência `spring-boot-starter-data-redis-reactive` adicionada ao `pom.xml`
+3. `spring.data.redis.host/port` configurados no `application.yml` (via env `REDIS_HOST`/`REDIS_PORT`)
+4. Criado o bean **`ipKeyResolver`** (`RateLimiterConfig.java`) e referenciado em `key-resolver: "#{@ipKeyResolver}"`.
+   Sem um `KeyResolver`, o gateway cai no `PrincipalNameKeyResolver` e responde 403 a tudo (não estava documentado antes).
+5. Reordenados os filtros: **`RequestRateLimiter` antes do `CircuitBreaker`**, para rejeitar excesso de carga (429)
+   sem gastar chamada do CB nem alcançar o downstream.
+
+Validado end-to-end: `redis: UP` no `/actuator/health`; 60 requisições simultâneas a `/api/agent/**`
+→ 20 passam (`burstCapacity`) e 40 retornam **429** (`replenishRate: 10`, `burstCapacity: 20`).
 
 ---
 

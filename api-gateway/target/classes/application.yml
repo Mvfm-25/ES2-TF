@@ -5,6 +5,12 @@ spring:
   application:
     name: api-gateway
 
+  # Backend de contagem do RequestRateLimiter (token bucket distribuído)
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+
   cloud:
     gateway:
       discovery:
@@ -19,14 +25,17 @@ spring:
             - Path=/api/agent/**
           filters:
             - StripPrefix=2          # remove /api/agent antes de repassar
+            # Rate limiter ANTES do circuit breaker: rejeita excesso de carga
+            # cedo (429), sem gastar uma chamada do CB nem chegar no downstream.
+            - name: RequestRateLimiter
+              args:
+                key-resolver: "#{@ipKeyResolver}"   # limita por IP de origem
+                redis-rate-limiter.replenishRate: 10
+                redis-rate-limiter.burstCapacity: 20
             - name: CircuitBreaker
               args:
                 name: agentCB
                 fallbackUri: forward:/fallback/agent
-            - name: RequestRateLimiter
-              args:
-                redis-rate-limiter.replenishRate: 10
-                redis-rate-limiter.burstCapacity: 20
 
 eureka:
   client:

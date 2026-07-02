@@ -1,2 +1,3 @@
 C:\GDM-05\prog\ES2-TF\api-gateway\src\main\java\com\nubo\apigateway\ApiGatewayApplication.java
 C:\GDM-05\prog\ES2-TF\api-gateway\src\main\java\com\nubo\apigateway\FallbackController.java
+C:\GDM-05\prog\ES2-TF\api-gateway\src\main\java\com\nubo\apigateway\RateLimiterConfig.java
